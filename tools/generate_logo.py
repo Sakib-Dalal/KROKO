@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""Generate the KROKO logo: a halftone crocodile, as an SVG.
+"""Generate the KROKO logo: an evil front-facing crocodile in a halftone screen.
 
 Halftone is tonal reproduction by dot AREA, never by dot colour or opacity: a fixed
-grid of cells whose diameter encodes lightness. That rule drives everything here. The
-grid is one 45-degree mono screen, the paper is warm stock rather than white, and the
-ink is near-black rather than #000.
+grid of cells whose diameter encodes lightness. Here that inverts against a flat
+profile version — the ground is dark and the ink is bone, so a large dot means light
+and a small dot lets the dark ground through as shadow.
 
-The figure is drawn in an arbitrary source space and auto-fitted into the frame, so a
-coordinate mistake in the drawing can never silently crop the animal.
+A front view is read from three cues, in this order: two eyes set inside raised brows,
+a lit ridge running down the snout, and a dark mouth between two rows of teeth. Two
+small holes placed near the centre of a pale face read as eye sockets, not nostrils, so
+the snout is carried by the ridge alone.
+
+The head is authored as one half and mirrored, so the face is symmetrical by
+construction rather than by careful typing. The figure is auto-fitted into the frame,
+so a coordinate mistake cannot silently crop the animal.
+
+Palette: three inks, no more. Deep green ground, bone form, one blood accent for the
+eyes. Never pure white, never pure black.
 
 Usage:
     python3 tools/generate_logo.py assets
@@ -16,53 +25,67 @@ import math
 import os
 import sys
 
-CELL = 10.0
+GROUND = "#0a2418"
+BONE = "#e8e1ce"
+BLOOD = "#c8202e"
+SIZE = 1024
+CELL = 10.5
 ANGLE = 45.0
-INK = "#171717"
-PAPER = "#f2eee2"
-WIDTH = 1024
-HEIGHT = 320
-PADDING = 40
+PADDING = 26
+TOOTH_PITCH = 32.5
+TOP = -336.0
+BOTTOM = 268.0
+BROW_Y = -248.0
 
-BODY = (
-    (30, 250), (80, 222), (140, 205), (200, 196), (260, 190), (320, 186),
-    (380, 183), (440, 181), (500, 180), (560, 180), (620, 182), (670, 185),
-    (700, 178), (730, 172), (780, 176), (860, 184), (940, 192), (985, 198),
-    (996, 206), (940, 212), (880, 214), (820, 214), (770, 212), (740, 208),
-    (738, 232), (780, 236), (850, 238), (920, 236), (975, 230), (982, 238),
-    (920, 246), (850, 250), (780, 252), (740, 252), (700, 268), (660, 280),
-    (600, 292), (540, 298), (480, 300), (420, 298), (360, 292), (300, 284),
-    (240, 274), (180, 264), (120, 256), (70, 252),
+SKULL = (
+    (0, -300), (44, -293), (84, -301), (104, -319), (124, -327), (148, -319),
+    (168, -302), (186, -270), (196, -232), (203, -186), (204, -142), (196, -94),
+    (190, -38), (208, 10),
 )
 
-LEGS = (
-    ((330, 286), (368, 288), (372, 330), (398, 338), (330, 340), (322, 332)),
-    ((404, 292), (442, 294), (446, 336), (472, 344), (404, 346), (396, 338)),
-    ((598, 288), (636, 284), (642, 326), (668, 334), (600, 336), (592, 328)),
-    ((672, 276), (710, 272), (716, 314), (742, 322), (674, 324), (666, 316)),
-)
-
-SCUTES = (
-    (250, 190, 16), (318, 186, 17), (386, 183, 17), (454, 181, 17),
-    (522, 180, 16), (590, 180, 16), (652, 183, 14), (700, 179, 11),
-)
-
-EYE = (764, 189, 12.0)
+LOWER_START = (0, 140)
+LOWER_END = ((206, 166), (196, 214), (150, 246), (70, 262), (0, 268))
+EYE_HALF = ((80, -296), (140, -308), (142, -286), (82, -274))
+PUPIL = (110, -292, 6.5)
 
 
-def scute(apex_x, apex_y, height):
-    """One back scute as a small triangle."""
-    half = height * 0.9
-    return ((apex_x - half, apex_y), (apex_x, apex_y - height), (apex_x + half, apex_y))
+def tooth_row(first_x, base_y, drop, count):
+    """Zigzag tooth edge inward from first_x, teeth pointing by the sign of drop."""
+    points = []
+    for index in range(count):
+        left = first_x - index * TOOTH_PITCH
+        points.append((left, base_y))
+        points.append((left - TOOTH_PITCH * 0.5, base_y + drop))
+    points.append((first_x - count * TOOTH_PITCH, base_y))
+    return points
 
 
-def shapes():
-    """Every polygon that carries ink, legs and scutes included."""
-    found = [BODY]
-    found.extend(LEGS)
-    for apex_x, apex_y, height in SCUTES:
-        found.append(scute(apex_x, apex_y, height))
-    return found
+def mirror(points):
+    """Reflect a half across the centre line, reversing the winding."""
+    return [(-x, y) for x, y in reversed(points)]
+
+
+def upper_jaw():
+    """Skull, brow and the downward tooth row, as one half."""
+    return SKULL + tuple(tooth_row(192, 10, 46, 5)) + ((0, 10),)
+
+
+def lower_jaw():
+    """The open lower jaw and its upward tooth row, as one half."""
+    edge = tuple(reversed(tooth_row(180, 140, -56, 5)))
+    return (LOWER_START,) + edge + LOWER_END
+
+
+def head_polygons():
+    """Both jaws, right half and mirrored left half."""
+    upper = upper_jaw()
+    lower = lower_jaw()
+    return [upper, lower, mirror(upper), mirror(lower)]
+
+
+def eye_polygons():
+    """The two angled eye slits, mirrored."""
+    return [EYE_HALF, mirror(EYE_HALF)]
 
 
 def bounds(polys):
@@ -73,11 +96,11 @@ def bounds(polys):
 
 
 def fit(polys):
-    """Scale and offset that centre the figure in the frame with padding."""
+    """Scale and offset that centre the figure in the square frame with padding."""
     left, top, right, bottom = bounds(polys)
-    scale = min((WIDTH - 2 * PADDING) / (right - left), (HEIGHT - 2 * PADDING) / (bottom - top))
-    offset_x = (WIDTH - (right - left) * scale) / 2 - left * scale
-    offset_y = (HEIGHT - (bottom - top) * scale) / 2 - top * scale
+    scale = min((SIZE - 2 * PADDING) / (right - left), (SIZE - 2 * PADDING) / (bottom - top))
+    offset_x = (SIZE - (right - left) * scale) / 2 - left * scale
+    offset_y = (SIZE - (bottom - top) * scale) / 2 - top * scale
     return scale, offset_x, offset_y
 
 
@@ -96,12 +119,25 @@ def inside(point, points):
     return hit
 
 
+def half_width(y):
+    """Approximate half-width of the head at height y, used to shape the ridge."""
+    progress = min(1.0, max(0.0, (y - TOP) / (BOTTOM - TOP)))
+    return 112.0 + 100.0 * progress
+
+
+def brow_shade(x, y):
+    """A soft dark band beneath the brow, which is what makes an eye look angry."""
+    band = math.exp(-((y - BROW_Y) ** 2) / 1400.0)
+    reach = min(1.0, abs(x) / 120.0)
+    return 1.0 - 0.34 * band * reach
+
+
 def tone(x, y):
-    """Lightness in source space: dark along the back, falling away at belly and ends."""
-    body = 0.94 - 0.52 * min(1.0, max(0.0, (y - 180.0) / 120.0))
-    tail = 1.0 - 0.40 * min(1.0, max(0.0, (140.0 - x) / 110.0))
-    snout = 1.0 - 0.28 * min(1.0, max(0.0, (x - 900.0) / 96.0))
-    return max(0.22, min(0.96, body * tail * snout))
+    """Bone coverage: a lit ridge down the centre, falling to shadow at both flanks."""
+    distance = min(1.0, abs(x) / half_width(y))
+    ridge = 1.10 - 0.82 * distance ** 1.2
+    jaw = 1.0 - 0.30 * min(1.0, max(0.0, (y - 30.0) / 200.0))
+    return max(0.26, min(0.96, ridge * jaw * brow_shade(x, y)))
 
 
 def radius(coverage):
@@ -114,14 +150,12 @@ def dots(polys):
     scale, offset_x, offset_y = fit(polys)
     radians = math.radians(ANGLE)
     cos_a, sin_a = math.cos(radians), math.sin(radians)
-    reach = int(math.hypot(WIDTH, HEIGHT) / CELL) + 2
+    reach = int(SIZE / CELL) + 2
     found = []
     for row in range(-reach, reach):
         for column in range(-reach, reach):
-            u = column * CELL
-            v = row * CELL
-            paint_x = WIDTH / 2 + u * cos_a - v * sin_a
-            paint_y = HEIGHT / 2 + u * sin_a + v * cos_a
+            paint_x = SIZE / 2 + (column * CELL) * cos_a - (row * CELL) * sin_a
+            paint_y = SIZE / 2 + (column * CELL) * sin_a + (row * CELL) * cos_a
             source_x = (paint_x - offset_x) / scale
             source_y = (paint_y - offset_y) / scale
             if not any(inside((source_x, source_y), shape) for shape in polys):
@@ -130,20 +164,50 @@ def dots(polys):
     return found, scale, offset_x, offset_y
 
 
+def place(point, scale, offset_x, offset_y):
+    """Map one source point into frame coordinates."""
+    return point[0] * scale + offset_x, point[1] * scale + offset_y
+
+
+def outline(poly, scale, offset_x, offset_y):
+    """An SVG polygon point list in frame coordinates."""
+    pairs = []
+    for point in poly:
+        x, y = place(point, scale, offset_x, offset_y)
+        pairs.append(f"{x:.1f},{y:.1f}")
+    return " ".join(pairs)
+
+
+def circle(spec, scale, offset_x, offset_y):
+    """An SVG circle element from a (x, y, r) source-space spec."""
+    x, y = place(spec[:2], scale, offset_x, offset_y)
+    return f'    <circle cx="{x:.1f}" cy="{y:.1f}" r="{spec[2] * scale:.1f}"/>\n'
+
+
+def both(spec, scale, offset_x, offset_y):
+    """One circle drawn on both sides of the centre line."""
+    left = circle(spec, scale, offset_x, offset_y)
+    return left + circle((-spec[0], spec[1], spec[2]), scale, offset_x, offset_y)
+
+
 def render(found, scale, offset_x, offset_y):
     """Assemble the SVG document."""
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" ',
-        f'width="{WIDTH}" height="{HEIGHT}" role="img" ',
-        'aria-label="KROKO: a crocodile printed in a halftone dot screen">\n',
-        f'  <rect width="{WIDTH}" height="{HEIGHT}" rx="26" fill="{PAPER}"/>\n',
-        f'  <g fill="{INK}">\n',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE} {SIZE}" ',
+        f'width="{SIZE}" height="{SIZE}" role="img" ',
+        'aria-label="KROKO: an evil front-facing crocodile printed in a halftone dot screen">\n',
+        f'  <rect width="{SIZE}" height="{SIZE}" rx="150" fill="{GROUND}"/>\n',
+        f'  <g fill="{BONE}">\n',
     ]
-    eye_x = EYE[0] * scale + offset_x
-    eye_y = EYE[1] * scale + offset_y
-    parts.append(f'    <circle cx="{eye_x:.1f}" cy="{eye_y:.1f}" r="{EYE[2] * scale:.1f}" fill="{PAPER}"/>\n')
     for x, y, r in found:
         parts.append(f'    <circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}"/>\n')
+    parts.append("  </g>\n")
+    parts.append(f'  <g fill="{BLOOD}">\n')
+    for poly in eye_polygons():
+        parts.append(f'    <polygon points="{outline(poly, scale, offset_x, offset_y)}"/>\n')
+    parts.append("  </g>\n")
+    parts.append(f'  <g fill="{GROUND}">\n')
+    parts.append(both(PUPIL, scale, offset_x, offset_y))
     parts.append("  </g>\n</svg>\n")
     return "".join(parts)
 
@@ -152,7 +216,7 @@ def main(argv):
     """Write the logo and report the measurements."""
     target = argv[0] if argv else "assets"
     os.makedirs(target, exist_ok=True)
-    polys = shapes()
+    polys = head_polygons()
     left, top, right, bottom = bounds(polys)
     found, scale, offset_x, offset_y = dots(polys)
     path = os.path.join(target, "kroko-logo.svg")

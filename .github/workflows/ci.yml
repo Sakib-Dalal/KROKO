@@ -1,0 +1,28 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Regression suite
+        run: python3 scripts/kroko_selftest.py
+
+      - name: The gate must pass on its own source
+        run: python3 scripts/kroko.py scripts/kroko.py scripts/kroko_selftest.py tests/audit.py tests/benchmark.py tools/generate_logo.py
+
+      - name: Differential audit against the independent oracle
+        run: python3 tests/audit.py

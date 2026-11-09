@@ -1,0 +1,4 @@
+# Paths the pre-commit hook must not police.
+# The fixture corpus is deliberately bad code: it is the test data for the gate,
+# so a hook that checked it would block every commit to this repository.
+tests/fixtures/

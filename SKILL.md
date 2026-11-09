@@ -290,7 +290,7 @@ Refuse, and say that you are refusing:
 | `tests/fixtures/` | The 26 fixture files the self-test asserts against |
 | `templates/pre-commit` | The hook itself, checked only staged files in strict mode |
 | `tests/benchmark.py` | Reproduces the throughput, noise and robustness figures |
-| `tools/generate_logo.py` | Regenerates the halftone crocodile logo deterministically |
+| `tools/render_logo.html` | Renders the halftone logo in a browser, parametrically |
 
 ## Verification
 

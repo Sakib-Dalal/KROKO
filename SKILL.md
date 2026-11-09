@@ -1,7 +1,7 @@
 ---
 name: kroko
 description: "Use when writing or reviewing code to hard limits."
-version: 1.1.0
+version: 2.0.0
 author: Sakib Dalal
 license: MIT
 platforms: [linux, macos, windows]

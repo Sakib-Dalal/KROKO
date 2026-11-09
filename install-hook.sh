@@ -15,8 +15,8 @@ if [ ! -d "$REPO/.git" ]; then
     echo "kroko: not a git repository: $REPO" >&2
     exit 2
 fi
-if [ ! -f "$KROKO_HOME/scripts/kroko.py" ]; then
-    echo "kroko: gate not found at $KROKO_HOME/scripts/kroko.py" >&2
+if [ ! -x "$KROKO_HOME/bin/kroko" ]; then
+    echo "kroko: gate not found at $KROKO_HOME/bin/kroko" >&2
     echo "kroko: run install.sh first, or set KROKO_HOME" >&2
     exit 2
 fi
@@ -31,4 +31,4 @@ fi
 sed "s|@KROKO_HOME@|$KROKO_HOME|g" "$SOURCE/templates/pre-commit" > "$HOOK"
 chmod +x "$HOOK"
 echo "kroko: hook installed at $HOOK"
-echo "kroko: gate resolved to $KROKO_HOME/scripts/kroko.py"
+echo "kroko: gate resolved to $KROKO_HOME/bin/kroko"

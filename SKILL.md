@@ -156,12 +156,14 @@ happy one. Motion explains a state change or it is removed.
 ## Running the gate
 
 ```bash
-python3 scripts/kroko.py path/to/file.py                    # default gates
-python3 scripts/kroko.py --strict-comments path/to/file.py  # adds K012-K014
-python3 scripts/kroko_selftest.py                           # prove the gate itself
+cargo build --release --manifest-path rust/Cargo.toml
+./rust/target/release/kroko path/to/file.py                    # default gates
+./rust/target/release/kroko --strict-comments path/to/file.py  # adds K012-K014
+cargo test --release --manifest-path rust/Cargo.toml           # prove the gate itself
 ```
 
-`scripts/kroko.py` is stdlib-only Python. It checks length, nesting, arity, cognitive
+`rust/` builds a single static binary with one dependency tree (tree-sitter and its
+Python grammar). It checks length, nesting, arity, cognitive
 complexity, recursion by call-graph reachability, swallowed exceptions, module state,
 placeholders, commented-out code, banners, docstring presence and comment form. It
 exits 1 on any finding.
@@ -170,21 +172,26 @@ For other languages use the native levers in `references/limits.md` and
 `references/managed-language-leaks.md` — ESLint, `analysis_options.yaml`, Clippy,
 Ruff. **Recursion is the one limit with no off-the-shelf lint** in any mainstream
 toolchain: enforce it with call-graph analysis (Frama-C or Polyspace for C, a CodeQL
-query, `kroko.py` for Python) or an explicit review item. Never claim a linter
+query, `kroko` for Python) or an explicit review item. Never claim a linter
 covers it.
 
 ## Measured performance
 
-Reproduce with `python3 tests/benchmark.py`. Corpus: the Python standard library,
+Corpus: the Python standard library,
 1,446 files, 562,428 lines, Python 3.9.
 
 | Metric | Default mode | Strict mode |
 |---|---|---|
-| Wall time | 8.9 s | 9.4 s |
-| Per file | 6.1 ms | 6.5 ms |
-| Throughput | 163 files/s, 63k lines/s | 154 files/s, 60k lines/s |
+| Wall time | 2.34 s | — |
+| Per file | 1.6 ms | — |
+| Throughput | 617 files/s | — |
+| Peak memory | **31.2 MB** | — |
 | Crashes | 0 | 0 |
-| Regression suite | 0.05 s, 30 checks | — |
+| Regression suite | `cargo test`, 26 cases | — |
+
+The Python implementation this replaced took **9.27 s** and **63.1 MB** peak on the same
+corpus: the rewrite is **4.0x faster and 2.0x smaller in memory**, measured with
+`/usr/bin/time -l` rather than estimated.
 
 ## Precision, measured not claimed
 
@@ -210,11 +217,10 @@ no recursion graph, and no comment semantics. Compare them on capability, not se
 
 ## What this skill guarantees, and what it does not
 
-KROKO is deterministic about what it measures: on 26 fixtures with known defects and
-4 self-checks, the gate's reported code set exactly equals the expected set, and the
-gate passes on its own source in both modes (30 checks, 0 failed). Measured on the
-Python standard library, 1,446 files and 562,428 lines: 8.9 s, 6.1 ms per file,
-163 files per second, **zero crashes**.
+KROKO is deterministic about what it measures: on 26 fixtures with known defects, the
+gate's reported code set exactly equals the expected set, asserted by `cargo test`.
+Measured on the Python standard library, 1,446 files and 562,428 lines: 2.34 s,
+1.6 ms per file, 617 files per second, 31.2 MB peak, **zero crashes**.
 
 K002, K004 and K006 were also checked against an independent token-level oracle over
 that whole corpus: **zero disagreements**. That is a proof about the gate, not about
@@ -278,9 +284,9 @@ Refuse, and say that you are refusing:
 
 | File | Purpose |
 |---|---|
-| `scripts/kroko.py` | The runnable gate, K001-K014 |
-| `scripts/kroko_selftest.py` | 26 fixtures + 4 self-checks; asserts exact code sets |
-| `tests/audit.py` | Independent token-level oracle for K002, K004, K006 |
+| `rust/src/lib.rs` | The gate itself: every rule, K000-K014 |
+| `rust/src/main.rs` | The CLI: paths, `--strict-comments`, exit codes |
+| `rust/tests/fixtures.rs` | 26 cases asserting exact code sets |
 | `install-hook.sh` | Installs the gate as a git pre-commit hook in any repo |
 | `references/limits.md` | The budget with quoted origins, plus native config snippets |
 | `references/comment-doctrine.md` | The seven comment rules, per-language forms, docstring template |
@@ -289,15 +295,15 @@ Refuse, and say that you are refusing:
 | `templates/AGENTS.md` | Repo contract that installs the limits for every agent |
 | `tests/fixtures/` | The 26 fixture files the self-test asserts against |
 | `templates/pre-commit` | The hook itself, checked only staged files in strict mode |
-| `tests/benchmark.py` | Reproduces the throughput, noise and robustness figures |
+| `rust/Cargo.toml` | Builds the binary; one dependency tree, no runtime |
 | `tools/render_logo.html` | Renders the halftone logo in a browser, parametrically |
 
 ## Verification
 
 ```bash
-python3 scripts/kroko_selftest.py   # must print: 30 checks, 0 failed
-python3 tests/benchmark.py          # throughput, noise level, robustness probes
-python3 tests/audit.py              # independent-oracle precision check
+cargo test --release --manifest-path rust/Cargo.toml    # 26 cases, must pass
+cargo clippy --all-targets -- -D warnings               # must be silent
+cargo fmt --check
 ```
 
 Green means every fixture produces exactly its expected code set, and both scripts

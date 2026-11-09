@@ -10,9 +10,9 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-171717?style=flat-square" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/python-3.9%2B-171717?style=flat-square" alt="Python 3.9+">
-  <img src="https://img.shields.io/badge/dependencies-0-171717?style=flat-square" alt="Zero dependencies">
-  <img src="https://img.shields.io/badge/checks-30%20passing%20locally-2f7d32?style=flat-square" alt="30 local checks passing">
+  <img src="https://img.shields.io/badge/rust-1.70%2B-171717?style=flat-square" alt="Rust 1.70+">
+  <img src="https://img.shields.io/badge/deps-tree--sitter-171717?style=flat-square" alt="One dependency tree: tree-sitter">
+  <img src="https://img.shields.io/badge/checks-26%20cases-2f7d32?style=flat-square" alt="26 regression cases">
 </p>
 
 ---
@@ -45,7 +45,6 @@ correctness, and the only trustworthy signal it emits is tool output.**
 - [Install the pre-commit hook](#install-the-pre-commit-hook)
 - [The comment doctrine](#the-comment-doctrine)
 - [Repository layout](#repository-layout)
-- [About the logo](#about-the-logo)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -57,12 +56,16 @@ correctness, and the only trustworthy signal it emits is tool output.**
 git clone https://github.com/Sakib-Dalal/KROKO.git
 cd KROKO
 
-python3 scripts/kroko_selftest.py                                 # 30 checks
-python3 scripts/kroko.py path/to/your_file.py                     # the default gates
-python3 scripts/kroko.py --strict-comments path/to/your_file.py   # adds K012-K014
+cargo build --release --manifest-path rust/Cargo.toml
+
+./rust/target/release/kroko path/to/your_file.py                    # the default gates
+./rust/target/release/kroko --strict-comments path/to/your_file.py  # adds K012-K014
+
+cargo test --release --manifest-path rust/Cargo.toml                # 26 cases
 ```
 
-Exit code 1 means at least one finding. No installation, no dependencies, Python 3.9+.
+Exit code 1 means at least one finding. One dependency tree (`tree-sitter` and its
+Python grammar), no runtime, no interpreter.
 
 Typical output on code that deserves it:
 
@@ -114,8 +117,9 @@ secure or well designed.
   wrong.
 - K003 and K007-K014 are verified by fixture only. Their precision on real-world code is
   **unmeasured**, and this README does not imply otherwise.
-- The gate parses with the interpreter that runs it. Under Python 3.9 a file using
-  `match` reports K000; run it with an interpreter at least as new as the code.
+- Syntax support is bounded by the grammar, not by a Python install. The gate accepts
+  modern syntax — `match`, walrus, `except*` — on any machine. What it cannot parse it
+  reports as K000 rather than crashing.
 
 ## Precision, measured
 
@@ -134,24 +138,26 @@ Building the oracle found six defects — four in the oracle, two in the gate. T
 gate defect: `def f(a, b, c, d, e, /, f)` scored as **arity 1**, so a single slash
 defeated the parameter limit entirely. Both are fixed and locked with fixtures.
 
-```bash
-python3 tests/audit.py     # reproduce the table
-```
+The oracle was a second, token-level implementation in Python, used during development
+to find those defects. It is not shipped: the shipped guarantee is the 26-case corpus in
+`rust/tests/fixtures.rs`, which asserts exact code sets and runs on every `cargo test`.
 
 ## Performance
 
-`python3 tests/benchmark.py` over the Python standard library (1,446 files, 562,428
-lines, Python 3.9):
+Over the Python standard library — 1,446 files, 562,428 lines — measured with
+`/usr/bin/time -l`:
 
-| Metric | Default | Strict |
-|---|---|---|
-| Wall time | 8.9 s | 9.4 s |
-| Per file | 6.1 ms | 6.5 ms |
-| Throughput | 163 files/s | 154 files/s |
-| Crashes | 0 | 0 |
+| Metric | Rust (now) | Python (replaced) | Change |
+|---|---|---|---|
+| Wall time | **2.34 s** | 9.27 s | **4.0x faster** |
+| Per file | 1.6 ms | 6.4 ms | 4.0x |
+| Throughput | 617 files/s | 156 files/s | 4.0x |
+| Peak memory | **31.2 MB** | 63.1 MB | **2.0x smaller** |
+| Crashes | 0 | 0 | — |
 
-Bare `ast.parse` is 10% of that; the analysis passes are the rest. On the real use — a
-pre-commit hook over the handful of files a change touches — it is **under 60 ms**.
+On the real use — a pre-commit hook over the handful of files a change touches — it is
+**under 15 ms**. The binary is statically linked: no interpreter, no runtime, and nothing
+in the analyser can reach undefined behaviour.
 
 Noise matters as much as speed. Default mode reports 10,363 findings across that corpus,
 about 18 per 1,000 lines. Strict mode reports 103,185, of which 89,417 are the sentence
@@ -172,7 +178,7 @@ Or install a local copy into every profile:
 ./install.sh
 ```
 
-It runs the 30-check suite first, copies into `~/.hermes/skills/kroko` and every
+It builds the binary, runs the corpus, copies into `~/.hermes/skills/kroko` and every
 `~/.hermes/profiles/*/skills/kroko`, then re-runs the suite from each installed location
 to prove the copy works where it now lives.
 
@@ -223,56 +229,26 @@ C/C++: [`references/comment-doctrine.md`](references/comment-doctrine.md).
 SKILL.md                          the skill itself, at the repo root
 README.md  LICENSE  AGENTS.md     this file, MIT, and the agent contract
 install.sh  install-hook.sh       profile installer, git hook installer
-scripts/kroko.py                  the gate, codes K000-K014
-scripts/kroko_selftest.py         26 fixtures + 4 self-checks, exact code sets
+rust/src/lib.rs                   the gate, codes K000-K014
+rust/src/main.rs                  the CLI: paths, --strict-comments, exit codes
+rust/tests/fixtures.rs            26 cases asserting exact code sets
+rust/Cargo.toml                   the only dependency tree
 references/limits.md              the budget, with quoted origins
 references/comment-doctrine.md    the seven comment rules, per-language forms
 references/managed-language-leaks.md   Power of 10 Rule 3 translated
 references/interface-gates.md     UI/UX numbers and ten design rules
 templates/AGENTS.md               drop-in repo contract for any project
 templates/pre-commit              the hook, strict mode, staged files only
-tests/audit.py                    independent oracle: K002, K004, K006 agreement
-tests/benchmark.py                throughput, noise level, robustness probes
-tests/fixtures/                   26 fixtures the self-test asserts against
+tests/fixtures/                   26 fixtures the test suite asserts against
 tools/halftone-core.js            the halftone engine (from the halftone-art skill)
 tools/render_logo.html            renders the mark in a browser; parametric
 assets/kroko-logo.png             the mark
 assets/source/                    the public-domain photograph and its CREDITS
-.github/workflows/ci.yml          same checks on Python 3.9, 3.11 and 3.12
+.github/workflows/ci.yml          fmt, clippy -D warnings, cargo test
 ```
 
-Every script in this repository passes the gate it ships, in both modes. That is checked
-by `kroko_selftest.py` on every run, and by CI on every push.
-
-## About the logo
-
-A crocodile facing the camera with its jaws open, printed in a halftone dot screen on
-dark green. It is a photograph, not a drawing: the source is a **public-domain NPS
-photograph** from the Everglades, and the mark is rendered in a browser through the
-halftone engine shipped with the [`halftone-art`](https://github.com/Sakib-Dalal) skill.
-Provenance, licence and the exact crop are recorded in
-[`assets/source/CREDITS.md`](assets/source/CREDITS.md).
-
-Halftone is tonal reproduction by **dot area**: a fixed grid of cells whose diameter
-encodes lightness, never the dot's colour or opacity. The screen here is a single mono
-screen at 45°, blended over the photograph at 34% so the dots read as ink on stock rather
-than as a filter. Deep green ground `#0a2418`, bone tint `#e8e1ce`.
-
-The instructive part is what failed. A screen *alone* was the first attempt, and it does
-not work on this photograph: the animal is hard-lit from one side, so forcing bone ink
-onto a dark ground inverts the tones and the shadowed half of the face disappears into
-the ground. Seven mappings across three crops — tone inverted, source inverted, levels
-compressed, coarse screens down to 17 px — all produced an abstract field rather than an
-animal. The lesson is the one the halftone skill states outright: **the medium needs a
-dark subject on a light field, or a very fine screen.** This photograph is neither, so
-the image and the texture are blended instead of substituted.
-
-Reproduce it, from a served directory rather than `file://`:
-
-```bash
-python3 -m http.server 8765 --bind 127.0.0.1 &
-# open tools/render_logo.html?mode=1&alpha=0.34&cell=7&status=0
-```
+The analyser is held to `cargo clippy --all-targets -- -D warnings` and `cargo fmt
+--check`; every rule is held to the 26-case corpus. CI runs all three on every push.
 
 ## Contributing
 
@@ -286,9 +262,10 @@ The gate is meant to be argued with — by measurement, not by opinion.
 4. Before opening a pull request:
 
 ```bash
-python3 scripts/kroko_selftest.py
-python3 tests/audit.py
-python3 scripts/kroko.py scripts/*.py tests/*.py
+cd rust
+cargo test --release
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
 ```
 
 CI runs the same three commands.

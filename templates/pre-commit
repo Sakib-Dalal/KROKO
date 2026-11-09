@@ -3,9 +3,9 @@
 set -euo pipefail
 
 KROKO_HOME="${KROKO_HOME:-@KROKO_HOME@}"
-GATE="$KROKO_HOME/scripts/kroko.py"
+GATE="$KROKO_HOME/bin/kroko"
 
-if [ ! -f "$GATE" ]; then
+if [ ! -x "$GATE" ]; then
     echo "kroko: gate not found at $GATE" >&2
     echo "kroko: set KROKO_HOME or reinstall with install-hook.sh" >&2
     exit 1
@@ -41,7 +41,7 @@ fi
 
 echo "kroko: checking staged Python files (strict comments)"
 # shellcheck disable=SC2086
-if ! python3 "$GATE" --strict-comments $staged; then
+if ! "$GATE" --strict-comments $staged; then
     echo
     echo "kroko: commit blocked. Fix the findings above, or run without the hook:"
     echo "kroko:   git commit --no-verify"

@@ -6,8 +6,9 @@ Read this before writing code. It is not advisory.
 ## Setup
 
 ```bash
-python3 scripts/kroko_selftest.py    # the gate must be green before anything else
-python3 scripts/kroko.py scripts/kroko.py
+cargo test --release --manifest-path rust/Cargo.toml        # the gate must be green first
+./rust/target/release/kroko path/to/file.py                  # check one file
+cargo clippy --all-targets -- -D warnings                    # no warnings allowed
 ```
 
 ## Non-negotiable limits

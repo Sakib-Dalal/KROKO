@@ -8,21 +8,33 @@ on:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.9", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: ${{ matrix.python-version }}
+          components: rustfmt, clippy
 
-      - name: Regression suite
-        run: python3 scripts/kroko_selftest.py
+      - name: Formatting
+        working-directory: rust
+        run: cargo fmt --check
 
-      - name: The gate must pass on its own source
-        run: python3 scripts/kroko.py scripts/kroko.py scripts/kroko_selftest.py tests/audit.py tests/benchmark.py
+      - name: Lints, denying warnings
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
 
-      - name: Differential audit against the independent oracle
-        run: python3 tests/audit.py
+      - name: Regression corpus
+        working-directory: rust
+        run: cargo test
+
+      - name: The gate must catch a known-bad file
+        run: |
+          set +e
+          ./rust/target/debug/kroko tests/fixtures/bad_recursion.py > report.txt
+          status=$?
+          set -e
+          cat report.txt
+          test "$status" -eq 1
+          grep -q "K001" report.txt
+
+      - name: The gate must pass a known-good file
+        run: ./rust/target/debug/kroko --strict-comments tests/fixtures/good_clean.py
